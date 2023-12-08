@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { privateProcedure, router } from "./trpc";
+import { privateProcedure, publicProcedure, router } from "./trpc";
 import { TRPCError } from "@trpc/server";
-import { getPayloadClient } from "@/get-payload";
+import { getPayloadClient } from "../get-payload";
 import { stripe } from "../lib/stripe";
 import type Stripe from "stripe";
 
@@ -10,7 +10,7 @@ export const paymentRouter = router({
     .input(z.object({ productIds: z.array(z.string()) }))
     .mutation(async ({ ctx, input }) => {
       const { user } = ctx;
-      const { productIds } = input;
+      let { productIds } = input;
 
       if (productIds.length === 0) {
         throw new TRPCError({ code: "BAD_REQUEST" });
@@ -33,11 +33,11 @@ export const paymentRouter = router({
         collection: "orders",
         data: {
           _isPaid: false,
-          products: filteredProducts,
+          products: filteredProducts.map((prod) => prod.id),
           user: user.id,
         },
       });
-
+      const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
       filteredProducts.forEach((product) => {
         line_items.push({
           price: product.priceId!,
@@ -45,7 +45,6 @@ export const paymentRouter = router({
         });
       });
 
-      const line_items: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
       line_items.push({
         price: "price_1OKa4kHGkdhab1vo39P5jW4G",
         quantity: 1,
@@ -58,7 +57,8 @@ export const paymentRouter = router({
         const stripeSession = await stripe.checkout.sessions.create({
           success_url: `${process.env.NEXT_PUBLIC_SERVER_URL}/thank-you?orderId=${order.id}`,
           cancel_url: `${process.env.NEXT_PUBLIC_SERVER_URL}/cart`,
-          payment_method_types: ["card", "paypal"],
+          payment_method_types: ["card"],
+          mode: "payment",
           metadata: {
             userId: user.id,
             orderId: order.id,
@@ -70,5 +70,28 @@ export const paymentRouter = router({
         console.log(err);
         return { url: null };
       }
+    }),
+
+  pollOrderStatus: privateProcedure
+    .input(z.object({ orderId: z.string() }))
+    .query(async ({ input }) => {
+      const { orderId } = input;
+
+      const payload = await getPayloadClient();
+
+      const { docs: orders } = await payload.find({
+        collection: "orders",
+        where: {
+          id: {
+            equals: orderId,
+          },
+        },
+      });
+      if (!orders.length) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+      const [order] = orders;
+
+      return { isPaid: order._isPaid };
     }),
 });
