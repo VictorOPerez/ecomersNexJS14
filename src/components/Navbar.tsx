@@ -7,6 +7,7 @@ import Cart from "./Cart";
 import { getServerSiseUser } from "@/lib/payload-utils";
 import UserAccountNav from "./UserAccountNav";
 import { cookies } from "next/headers";
+import MobileNav from "./MbileNav";
 
 const Navbar = async () => {
   const nextCookies = cookies();
@@ -19,6 +20,8 @@ const Navbar = async () => {
         <MaxWidthWrapper>
           <div className=" border-b border-gray-200">
             <div className="flex h-16 items-center">
+              <MobileNav />
+
               {/* TODO: mobile nav */}
               <div className=" ml-4 flex lg:ml-0">
                 <Link href="/">
@@ -29,7 +32,7 @@ const Navbar = async () => {
                 <NavItems />
               </div>
               <div className=" ml-auto flex items-center">
-                <div className=" hidden lg:flex lg:flex-1 lg:items-center lg:justify-end lg:space-x-6">
+                <div className=" flex items-center lg:flex lg:flex-1 lg:items-center lg:justify-end lg:space-x-6">
                   {user ? null : (
                     <Link
                       href="/sign-in"
